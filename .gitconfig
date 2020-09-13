@@ -1,0 +1,5 @@
+[user]
+        email = action@github.com
+        name = Github Action
+[pull]
+        ff = only

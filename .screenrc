@@ -1,0 +1,6 @@
+startup_message off
+altscreen on
+term screen-256color
+termcapinfo xterm* ti@:te@
+defscrollback 20000
+defnonblock 300

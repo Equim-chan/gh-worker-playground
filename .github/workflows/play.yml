@@ -1,0 +1,50 @@
+name: Playground
+
+on:
+  - push
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Prepare
+        env:
+          DAV_USER: ${{ secrets.DAV_USER }}
+          DAV_ENDPOINT: ${{ secrets.DAV_ENDPOINT }}
+          WEBSOCAT_URL: https://github.com/vi/websocat/releases/download/v1.6.0/websocat_1.6.0_ssl1.1_amd64.deb
+        run: |
+          set -x
+
+          export DEADLINE=$(env TZ=Asia/Shanghai date +'%H%M' -d '+6 hours')
+
+          sudo apt-get update -y
+          sudo apt-get install -y socat
+          wget -O websocat.deb "$WEBSOCAT_URL"
+          sudo dpkg -i websocat.deb && rm websocat.deb
+
+          for f in {backup,restore}.sh; do
+            printf '#!/bin/bash\n\nUSER=%q\nENDPOINT=%q\n\n' "$DAV_USER" "$DAV_ENDPOINT" > .tmp
+            cat "$f" >> .tmp
+            cat .tmp > "$f"
+            rm .tmp
+          done
+          chmod +x *.sh
+
+          mkdir -p $HOME/arch-home
+          rsync -a ./ $HOME/arch-home/
+
+          docker pull archlinux:latest
+          docker run --init -d --name archlinux --hostname arch-$DEADLINE -v $HOME/arch-home:/home/equim archlinux:latest sleep inf
+          docker exec archlinux /bin/bash /home/equim/arch-init.sh
+
+      - name: Here we go
+        run: |
+          set -x
+
+          echo 'exec docker exec -w /home/equim -it archlinux /usr/bin/sudo -u equim /bin/bash' > link-start.sh
+          while [[ ! -f $HOME/arch-home/quit ]]; do
+            websocat --oneshot --ping-interval=15 -b cmd:"socat EXEC:'bash link-start.sh',pty,stderr,setsid,sigint,sane -" wss://shell.ekyu.moe || true
+            sleep 10s
+          done
